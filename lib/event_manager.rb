@@ -1,21 +1,13 @@
 require "csv"
 require 'google/apis/civicinfo_v2'
 require 'erb'
+require 'date'
 
 contents = CSV.open "event_attendees.csv", headers: true, header_converters: :symbol
 template_letter = File.read "form_letter.erb"
 erb_template = ERB.new template_letter
 
 def clean_zipcode(zipcode)
-#   if zipcode.nil?
-#     zipcode = "00000"
-#   elsif zipcode.length < 5
-#     zipcode = zipcode.rjust 5, "0"
-#   elsif zipcode.length > 5
-#     zipcode = zipcode[0..4]
-#   else
-#     zipcode
-#   end
   zipcode.to_s.rjust(5,"0")[0..4]
 end
 
@@ -61,6 +53,52 @@ def clean_phone_number(phone_number)
   end
 end
 
+def registration_by_hour(reg_date)
+  date = Date._strptime(reg_date, "%m/%d/%Y %H:%M")
+
+  if (defined?(@hour_registration) == nil)
+    @hour_registration = Hash.new
+  end
+
+  if !@hour_registration.include? date[:hour]
+    @hour_registration[date[:hour]] = 1
+  else 
+    @hour_registration[date[:hour]] += 1
+  end
+
+end
+
+def registration_by_day(reg_date)
+  #day of the week is returned. Sunday is 0
+
+  date = Date._strptime(reg_date, "%m/%d/%Y %H:%M")
+  date_format = Date.parse("#{date[:year]}-#{date[:mon]}-#{date[:mday]}")
+
+  if (defined?(@week_registration) == nil)
+    # @week_registration = Hash.new
+    @week_registration = {
+      "Sunday" => 0,
+      "Monday" => 0,
+      "Tuesday" => 0,
+      "Wednesday" => 0,
+      "Thursday" =>0,
+      "Friday" => 0, 
+      "Saturday" => 0,
+    }
+    @week_map = {
+      0 => "Sunday",
+      1 => "Monday",
+      2 => "Tuesday",
+      3 => "Wednesday",
+      4 => "Thursday",
+      5 => "Friday",
+      6 => "Saturday",
+    }
+  end
+
+  @week_registration[@week_map[date_format.wday]] += 1
+end
+
 puts "EventManager Initialized."
 contents.each do |row|
   id = row[0]
@@ -76,6 +114,17 @@ contents.each do |row|
 
   phone_number = clean_phone_number(row[:homephone])
 
-  puts "#{name} #{zipcode} #{phone_number}"
+  
+  registration_by_hour(row[:regdate])
 
+  registration_by_day(row[:regdate])
+
+  
 end
+
+@hour_registration.values.sort.reverse!
+puts "Top three hours for registration are:"
+print @hour_registration.keys[0..2]
+puts "\nTop day of the week for registration is:"
+@week_registration.values.sort.reverse!
+puts @week_registration.keys[0]
